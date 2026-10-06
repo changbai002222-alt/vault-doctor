@@ -26,7 +26,11 @@ def check_broken_links(vault: Vault) -> Iterator[Issue]:
     suggester = Suggester(vault)
     for note in vault.notes:
         for link in note.links:
-            if vault.resolves(link.target):
+            if link.kind == "md":
+                ok = vault.resolves_md(link.target, note.path)
+            else:
+                ok = vault.resolves(link.target, note.path)
+            if ok:
                 continue
             s = suggester.suggest(note, link)
             msg = f"找不到目标：{link.raw}"

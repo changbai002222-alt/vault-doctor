@@ -70,6 +70,10 @@ def _print_report(vault: Vault, config, issues, names: List[str], limit: int) ->
             print(f"    …还有 {len(group) - len(shown)} 条，用 --limit 0 看全部")
     fixable = [i for i in issues if i.fix_kind]
     print(f"\n合计 {len(issues)} 个问题")
+    missing = sum(1 for i in issues if i.check == "no-frontmatter")
+    if vault.notes and missing and missing / len(vault.notes) > 0.8:
+        print(f"提示：{missing}/{len(vault.notes)} 篇都没有 frontmatter，看起来这个库不用它。"
+              f"可在 {CONFIG_NAME} 里关掉：{{\"checks\": {{\"no-frontmatter\": {{\"enabled\": false}}}}}}")
     if fixable:
         safe = sum(1 for i in fixable if i.fix_kind in SAFE_KINDS)
         print(f"其中 {len(fixable)} 处断链有修复建议（{safe} 处可直接用 vault-doctor fix 修）")

@@ -57,7 +57,11 @@ class Suggester:
                 self.alias_index.setdefault(alias.lower(), []).append(note.path)
 
     def suggest(self, note: Note, link: Link) -> Optional[Suggestion]:
+        if link.kind != "wiki":
+            return None
         target = link.target.replace("\\", "/").strip()
+        if target.startswith(("./", "../")):
+            return None  # relative links are the author's style; never rewrite them
         key = target.lower()
         if key.endswith(".md"):
             key = key[:-3]
@@ -108,7 +112,7 @@ def plan_fixes(vault: Vault, notes: Iterable[Note], accept: Iterable[str],
         edits: List[Tuple[int, int, str]] = []
         if fix_links(note.path):
             for link in note.links:
-                if vault.resolves(link.target):
+                if link.kind != "wiki" or vault.resolves(link.target, note.path):
                     continue
                 s = suggester.suggest(note, link)
                 if s and s.kind in accept:
