@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Callable, Dict, Iterator, List, Optional
 
+from .config import Config
+from .fixes import KIND_TITLES, Suggester
 from .vault import Vault
 
 
@@ -13,16 +15,25 @@ class Issue:
     path: str
     line: Optional[int]
     message: str
+    suggestion: Optional[str] = None  # a fixed [[...]] for broken links
+    fix_kind: Optional[str] = None    # alias / moved / prefix
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return {k: v for k, v in asdict(self).items() if v is not None}
 
 
 def check_broken_links(vault: Vault) -> Iterator[Issue]:
+    suggester = Suggester(vault)
     for note in vault.notes:
         for link in note.links:
-            if not vault.resolves(link.target):
-                yield Issue("broken-link", note.path, link.line, f"找不到目标：{link.raw}")
+            if vault.resolves(link.target):
+                continue
+            s = suggester.suggest(note, link)
+            msg = f"找不到目标：{link.raw}"
+            if s:
+                msg += f"  → 建议 {s.replacement}（{KIND_TITLES[s.kind]}）"
+            yield Issue("broken-link", note.path, link.line, msg,
+                        s.replacement if s else None, s.kind if s else None)
 
 
 def check_no_frontmatter(vault: Vault) -> Iterator[Issue]:
@@ -59,9 +70,17 @@ TITLES = {
 }
 
 
-def run_checks(vault: Vault, only: Optional[List[str]] = None) -> List[Issue]:
-    names = only or list(CHECKS)
+def enabled_checks(config: Optional[Config], only: Optional[List[str]] = None) -> List[str]:
+    """--only wins over "enabled": false, so a disabled check can still be run on demand."""
+    if only:
+        return list(only)
+    return [n for n in CHECKS if config is None or config.for_check(n).enabled]
+
+
+def run_checks(vault: Vault, only: Optional[List[str]] = None,
+               config: Optional[Config] = None) -> List[Issue]:
     issues: List[Issue] = []
-    for name in names:
-        issues.extend(CHECKS[name](vault))
+    for name in enabled_checks(config, only):
+        rule = config.for_check(name) if config else None
+        issues.extend(i for i in CHECKS[name](vault) if not (rule and rule.excludes(i.path)))
     return issues
