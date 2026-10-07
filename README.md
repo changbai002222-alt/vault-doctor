@@ -11,7 +11,7 @@
 ## 安装
 
 ```bash
-git clone <仓库地址>
+git clone https://github.com/changbai002222-alt/vault-doctor.git
 cd vault-doctor
 pip install -e .
 ```
